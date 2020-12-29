@@ -2,16 +2,15 @@
 
 Convenience Golang module enabling you to run embedded [Minio](https://min.io/) server for purpose of integration testing of AWS S3 operations.
 
-
 ## Motivation
 
 There is an [open feature request](https://github.com/minio/minio/issues/5146) on the [Minio GitHub project](https://github.com/minio/minio).
 It describes the necessary steps to use Minio in your tests, but still there is no easily (re-)useable code for that purpose.
 
 Notably, following features would we very useful:
-- Do no hard-code the port to which Minio will bind, instead use a free port
+- Do no hard-code the port to which Minio server will bind, instead use a free port determined at run time
 - Create a bucket after starting the server
-- Provide a tear-down function that will shut down Minio after the test is done
+- Provide a tear-down function that will shut down the Minio server after the test is done
 - Clean up files created by the test after the test is done
 
 All of those features are provided by this module.
@@ -20,6 +19,12 @@ All of those features are provided by this module.
 
 - Golang 1.15: uses Golang's test [TempDir](https://golang.org/pkg/testing/#T.TempDir) feature
 
+## Installation
+
+```bash
+$ go get github.com/draganm/miniotest
+
+```
 
 ## Use
 [this project's test](./miniotest_test.go) demonstrates the use of the embedded Minio for testing.
