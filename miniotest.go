@@ -27,7 +27,7 @@ func StartEmbedded(t *testing.T) (string, func()) {
 	madm, err := madmin.New(addr, accessKeyID, secretAccessKey, false)
 	require.NoError(t, err)
 
-	go minio.Main([]string{"minio", "server", "--address", addr, t.TempDir()})
+	go minio.Main([]string{"minio", "server", "--quiet", "--address", addr, t.TempDir()})
 
 	mc, err := mclient.New(addr, &mclient.Options{
 		Creds:  credentials.NewStaticV4(accessKeyID, secretAccessKey, ""),
