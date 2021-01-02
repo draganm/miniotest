@@ -29,23 +29,17 @@ $ go get github.com/draganm/miniotest
 ## Use
 [this project's test](./miniotest_test.go) demonstrates the use of the embedded Minio for testing.
 
+**UPDATE** it turns out that starting/stopping/starting Minio sever in this way does not work.
+This is because there are quite a few global states and signal handlers being installed and not cleaned up.
+
+Because of this, one can start the embedded server only once per test process and use [test Main()](https://golang.org/pkg/testing/#hdr-Main)
+method to set up / tear down the embedded server.
+
+On the up side, one can create one bucket per test, so there won't be any interferences between tests, unless one tests creation of buckets.
+
+
 ```golang
-package miniotest_test
-
-import (
-	"bytes"
-	"context"
-	"testing"
-
-	"github.com/draganm/miniotest"
-	mclient "github.com/minio/minio-go/v7"
-	"github.com/minio/minio-go/v7/pkg/credentials"
-	"github.com/stretchr/testify/require"
-)
-
-func Test(t *testing.T) {
-	addr, cleanup := miniotest.StartEmbedded(t)
-	defer cleanup()
+func Test1(t *testing.T) {
 
 	mc, err := mclient.New(addr, &mclient.Options{
 		Creds:  credentials.NewStaticV4("minioadmin", "minioadmin", ""),
@@ -59,6 +53,41 @@ func Test(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func Test2(t *testing.T) {
+
+	mc, err := mclient.New(addr, &mclient.Options{
+		Creds:  credentials.NewStaticV4("minioadmin", "minioadmin", ""),
+		Secure: false,
+	})
+	require.NoError(t, err)
+
+	data := []byte("test")
+
+	_, err = mc.PutObject(context.Background(), "test", "foo/var", bytes.NewReader(data), int64(len(data)), mclient.PutObjectOptions{})
+	require.NoError(t, err)
+}
+
+var addr string
+
+func TestMain(m *testing.M) {
+	var cleanup func() error
+	var err error
+	addr, cleanup, err = miniotest.StartEmbedded()
+
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "while starting embedded server: %s", err)
+		os.Exit(1)
+	}
+
+	exitCode := m.Run()
+
+	err = cleanup()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "while stopping embedded server: %s", err)
+	}
+
+	os.Exit(exitCode)
+}
 ```
 
 Function `miniotest.StartEmbedded()` starts Minio server and returns a string representing bound `address:port` where Minio is listening.
@@ -66,8 +95,6 @@ You can use this address as the endpoint for your S3 client (e.g. minio client).
 
 Second value returned is a function that will shut down the started Minio server when called.
 The best use of this function is to be deferred until the test function returns (as shown in the example).
-
-Passed `t *testing.T` parameter is used to create a test scoped temporary directory that will be deleted after the test has been run.
 
 ## Default values
 

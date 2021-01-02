@@ -2,52 +2,67 @@ package miniotest
 
 import (
 	"context"
-	"fmt"
+	"io/ioutil"
 	"net"
-	"testing"
+	"os"
 
 	// "github.com/minio/minio-go/pkg/credentials"
 	mclient "github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	minio "github.com/minio/minio/cmd"
 	"github.com/minio/minio/pkg/madmin"
-	"github.com/stretchr/testify/require"
+	"github.com/pkg/errors"
 )
 
-func StartEmbedded(t *testing.T) (string, func()) {
+func StartEmbedded() (string, func() error, error) {
 	l, err := net.Listen("tcp", "localhost:0")
-	require.NoError(t, err)
+	if err != nil {
+		return "", nil, errors.Wrap(err, "while creating listener")
+	}
+
 	addr := l.Addr().String()
 	err = l.Close()
-	require.NoError(t, err)
+	if err != nil {
+		return "", nil, errors.Wrap(err, "while closing listener")
+	}
 
 	accessKeyID := "minioadmin"
 	secretAccessKey := "minioadmin"
 
 	madm, err := madmin.New(addr, accessKeyID, secretAccessKey, false)
-	require.NoError(t, err)
+	if err != nil {
+		return "", nil, errors.Wrap(err, "while creating madimin")
+	}
 
-	go minio.Main([]string{"minio", "server", "--quiet", "--address", addr, t.TempDir()})
+	td, err := ioutil.TempDir("", "")
+	if err != nil {
+		return "", nil, errors.Wrap(err, "while creating temp dir")
+	}
+
+	go minio.Main([]string{"minio", "server", "--quiet", "--address", addr, td})
 
 	mc, err := mclient.New(addr, &mclient.Options{
 		Creds:  credentials.NewStaticV4(accessKeyID, secretAccessKey, ""),
 		Secure: false,
 	})
-	require.NoError(t, err)
-
-	defer func() {
-		if err != nil {
-			err = madm.ServiceStop(context.Background())
-			require.NoError(t, err)
-			fmt.Println("stopped")
-		}
-	}()
 
 	err = mc.MakeBucket(context.Background(), "test", mclient.MakeBucketOptions{})
-	require.NoError(t, err)
-
-	return addr, func() {
-		err = madm.ServiceStop(context.Background())
-		require.NoError(t, err)
+	if err != nil {
+		return "", nil, errors.Wrap(err, "while creating bucket")
 	}
+
+	return addr, func() error {
+		err := madm.ServiceStop(context.Background())
+		if err != nil {
+			return errors.Wrap(err, "while stopping service")
+		}
+
+		err = os.RemoveAll(td)
+		if err != nil {
+			return errors.Wrap(err, "while deleting temp dir")
+		}
+
+		return nil
+	}, nil
+
 }
